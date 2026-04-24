@@ -583,3 +583,4 @@ elif page == "📊 통계 분석":
             xaxis_tickangle=-30,
         )
         st.plotly_chart(fig, use_container_width=True)
+        st.header("수정사항 테스트")
