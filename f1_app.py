@@ -466,7 +466,7 @@ elif page == "🏆 드라이버 순위":
 
 # 🏁 컨스트럭터 순위
 elif page == "🏁 컨스트럭터 순위":
-    st.markdown("## 🏁 2026 컨스트럭터 챔피언십 이거는 수정해야겠지?")
+    st.markdown("## 🏁 2026 컨스트럭터 챔피언십")
     df = get_constructor_standings()
 
     st.dataframe(
