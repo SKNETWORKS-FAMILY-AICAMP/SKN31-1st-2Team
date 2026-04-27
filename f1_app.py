@@ -4,6 +4,7 @@ import plotly.express as px
 import plotly.graph_objects as go
 import requests
 import pymysql
+import sqlalchemy # 재원 추가
 
 # ── DB 설정 ─────────────────────────────────────────────
 
@@ -260,29 +261,46 @@ def get_driver_standings():
 
 
 @st.cache_data(ttl=3600)
-def get_constructor_standings():
+def get_constructor_standings_from_mysql(year):
+    """팀원의 MySQL DB에서 선택한 연도의 최종 순위를 가져오는 함수"""
     try:
-        url = "https://ergast.com/api/f1/current/constructorStandings.json"
-        res = requests.get(url, timeout=5)
-        data = res.json()
-        standings = data["MRData"]["StandingsTable"]["StandingsLists"][0]["ConstructorStandings"]
-        rows = []
-        for s in standings:
-            rows.append({
-                "순위": int(s["position"]),
-                "팀": s["Constructor"]["name"],
-                "포인트": int(s["points"]),
-                "승수": int(s["wins"]),
-            })
-        return pd.DataFrame(rows)
-    except Exception:
-        return pd.DataFrame([
-            {"순위": 1, "팀": "Red Bull Racing", "포인트": 110, "승수": 3},
-            {"순위": 2, "팀": "Ferrari", "포인트": 104, "승수": 1},
-            {"순위": 3, "팀": "McLaren", "포인트": 94, "승수": 0},
-            {"순위": 4, "팀": "Mercedes", "포인트": 37, "승수": 0},
-            {"순위": 5, "팀": "Aston Martin", "포인트": 33, "승수": 0},
-        ])
+        # ✅ 팀원이 준 정보를 아래 형식에 맞춰서 수정해!
+        # mysql+pymysql://아이디:비밀번호@아이피주소:포트번호/디비이름
+        user = "teamf1"        # 예: root
+        password = "1111"
+        host = "192.168.0.51"     # 팀원의 PC 또는 서버 IP
+        port = "3306"
+        database = "f1db"      # 데이터가 들어있는 DB 이름
+        
+        db_url = f"mysql+pymysql://{user}:{password}@{host}:{port}/{database}"
+        engine = sqlalchemy.create_engine(db_url)
+        
+        # ✅ CSV 버전과 동일하게 3개 테이블을 조인해서 최종전 결과를 가져오는 쿼리야.
+        query = f"""
+            SELECT 
+                cs.position AS '순위',
+                c.name AS '팀',
+                cs.points AS '포인트',
+                cs.wins AS '승수'
+            FROM constructor_standings cs
+            JOIN constructors c ON cs.constructorId = c.constructorId
+            JOIN races r ON cs.raceId = r.raceId
+            WHERE r.year = {year}
+              AND r.round = (SELECT MAX(round) FROM races WHERE year = {year})
+            ORDER BY cs.position ASC
+        """
+        
+        df = pd.read_sql(query, engine)
+        
+        # 포인트 포맷팅 (0.5점 등 소수점 처리)
+        if not df.empty and 'format_points' in globals():
+            df['포인트'] = df['포인트'].apply(format_points)
+            
+        return df
+        
+    except Exception as e:
+        st.error(f"❌ 팀원 DB 연결 실패: {e}")
+        return pd.DataFrame()
 
 
 # 2026 시즌 레이스 일정 (샘플)
@@ -480,51 +498,63 @@ elif page == "🏆 드라이버 순위":
 
 # 🏁 컨스트럭터 순위
 elif page == "🏁 컨스트럭터 순위":
-    st.markdown("## 🏁 2026 컨스트럭터 챔피언십 수정할거임")
-    df = get_constructor_standings()
+    
+    # 1. 제목과 드롭다운 배치 (기존 코드 활용)
+    col_title, col_select = st.columns([3, 1])
+    with col_title:
+        st.markdown("## 🏁 컨스트럭터 챔피언십")
+    with col_select:
+        year_list = list(range(2024, 1949, -1))
+        selected_year = st.selectbox("시즌 선택", year_list, label_visibility="collapsed")
+    
+    # 2. ✅ 팀원의 MySQL DB에서 데이터 불러오기!
+    df = get_constructor_standings_from_mysql(selected_year)
 
-    st.dataframe(
-        df.style.background_gradient(subset=["포인트"], cmap="Reds"),
-        use_container_width=True,
-        hide_index=True,
-    )
-
-    # 파이 차트
-    col1, col2 = st.columns(2)
-    with col1:
-        st.markdown("### 🍕 포인트 점유율")
-        fig = px.pie(
-            df.head(8),
-            names="팀",
-            values="포인트",
-            color="팀",
-            color_discrete_map=TEAM_COLORS,
-            template="plotly_dark",
-            hole=0.4,
+    if df.empty:
+        st.warning(f"데이터베이스에 {selected_year}년 자료가 없거나 연결이 원활하지 않아.")
+    else:
+        # 3. 불러온 데이터로 표와 차트 그리기 (기존 Plotly 코드 그대로 사용)
+        st.dataframe(
+            df.style.background_gradient(subset=["포인트"], cmap="Reds"),
+            use_container_width=True,
+            hide_index=True,
         )
-        fig.update_layout(paper_bgcolor="rgba(0,0,0,0)")
-        st.plotly_chart(fig, use_container_width=True)
+        
+        # 파이 차트와 바 차트 그리기
+        col1, col2 = st.columns(2)
+        with col1:
+            st.markdown("### 🍕 포인트 점유율")
+            fig = px.pie(
+                df.head(8),
+                names="팀",
+                values="포인트",
+                color="팀",
+                color_discrete_map=TEAM_COLORS,
+                template="plotly_dark",
+                hole=0.4,
+            )
+            fig.update_layout(paper_bgcolor="rgba(0,0,0,0)")
+            st.plotly_chart(fig, use_container_width=True)
 
-    with col2:
-        st.markdown("### 📊 팀별 포인트")
-        fig = px.bar(
-            df,
-            x="포인트",
-            y="팀",
-            color="팀",
-            color_discrete_map=TEAM_COLORS,
-            orientation="h",
-            template="plotly_dark",
-            text="포인트",
-        )
-        fig.update_layout(
-            paper_bgcolor="rgba(0,0,0,0)",
-            plot_bgcolor="rgba(0,0,0,0)",
-            showlegend=False,
-            yaxis={"categoryorder": "total ascending"},
-        )
-        st.plotly_chart(fig, use_container_width=True)
-
+        with col2:
+            st.markdown("### 📊 팀별 포인트")
+            fig = px.bar(
+                df,
+                x="포인트",
+                y="팀",
+                color="팀",
+                color_discrete_map=TEAM_COLORS,
+                orientation="h",
+                template="plotly_dark",
+                text="포인트",
+            )
+            fig.update_layout(
+                paper_bgcolor="rgba(0,0,0,0)",
+                plot_bgcolor="rgba(0,0,0,0)",
+                showlegend=False,
+                yaxis={"categoryorder": "total ascending"},
+            )
+            st.plotly_chart(fig, use_container_width=True)
 
 # 📅 레이스 일정
 elif page == "📅 레이스 일정":
