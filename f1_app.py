@@ -6,6 +6,8 @@ import requests
 import pymysql
 import sqlalchemy # 재원 추가
 from datetime import datetime
+from sqlalchemy import create_engine 
+
 
 # ── DB 설정 ─────────────────────────────────────────────
 
@@ -237,6 +239,58 @@ st.markdown("""
     }
 </style>
 """, unsafe_allow_html=True)
+
+# ── driver_master, season_driver_standings f1db 로드 ──────────────────────────────────────────
+@st.cache_data(ttl=600)
+def load_db_data():
+    """
+    F1 데이터베이스에서 드라이버 순위와 마스터 정보를 로드하는 함수입니다.
+    
+    Returns:
+        df_final (pd.DataFrame): 시즌, 순위, 드라이버, 팀, 포인트, 국적이 포함된 가공된 데이터
+        df_master (pd.DataFrame): 드라이버 전체 상세 정보 (마스터 데이터)
+    
+    Note:
+        - 10분(600초) 동안 캐시가 유지됩니다.
+        - mysql+pymysql 엔진을 사용하여 DB에 접속합니다.
+    """
+    # DB 접속 정보
+    user, password, host, port, db_name = "teamf1", "1111", "192.168.0.51", "3306", "f1db"
+    
+    try:
+        # 1. DB 연결 엔진 생성
+        engine = create_engine(f"mysql+pymysql://{user}:{password}@{host}:{port}/{db_name}")
+        
+        # 2. 데이터 불러오기 (순위 정보 및 마스터 정보)
+        df_stats = pd.read_sql("SELECT * FROM season_driver_standings", engine)
+        df_master = pd.read_sql("SELECT * FROM drivers_master", engine)
+        
+        # 3. 드라이버 풀네임 생성 (성 + 이름)
+        df_stats['드라이버'] = df_stats['first_name'].astype(str) + " " + df_stats['last_name'].astype(str)
+        
+        # 4. 컬럼명 한글화 (가독성 향상)
+        column_map = {
+            'season': '시즌', 
+            'season_position': '순위', 
+            'season_points': '포인트', 
+            'team_name': '팀', 
+            'driver_id': '선수번호'
+        }
+        df_stats = df_stats.rename(columns=column_map)
+        
+        # 5. 데이터 타입 변환 및 반올림 (포인트)
+        df_stats['포인트'] = pd.to_numeric(df_stats['포인트'], errors='coerce').round(2)
+        
+        # 6. 마스터 정보(국적)와 순위 정보 결합 (Merge)
+        df_master_sub = df_master[['driver_id', 'nationality']].rename(columns={'driver_id': '선수번호', 'nationality': '국적'})
+        df_final = pd.merge(df_stats, df_master_sub, on='선수번호', how='left')
+        
+        # 7. 최종 필요한 컬럼만 추출하여 반환
+        return df_final[['시즌', '순위', '드라이버', '팀', '포인트', '국적']], df_master
+
+    except Exception as e:
+        st.error(f"DB 연동 실패: {e}")
+        return None, None
 
 
 # ── 데이터 (Ergast API 또는 하드코딩) ────────────────────────
@@ -557,51 +611,70 @@ if page == "🏠 홈":
 
 # 🏆 드라이버 순위
 elif page == "🏆 드라이버 순위":
-    st.markdown("## 🏆 2026 유진영 드라이버 챔피언십")
-    df = get_driver_standings()
+    st.markdown("## 🏆 드라이버 챔피언십 조회")
+    df, df_master = load_db_data()
 
-    # 검색창을 선택하면 필터창을 지우고, 반대면 반대로 만들기. on_change 속성에 콜백함수로 넣음
-    def dr_change_driver():
-        st.session_state.dr_search_team = ""
-    def dr_change_team():
-        st.session_state.dr_search_driver = ""
+    if df is not None:
+        # 세션 상태 초기화
+        if "sel_season" not in st.session_state: st.session_state.sel_season = "전체"
+        if "search_input" not in st.session_state: st.session_state.search_input = ""
+        if "sel_team" not in st.session_state: st.session_state.sel_team = "전체"
 
-    # 검색 & 필터
-    col1, col2 = st.columns([3, 1])
-    with col1:
-        search = st.text_input("🔍 드라이버 검색", key="dr_search_driver", on_change=dr_change_driver, placeholder="이름을 입력하세요...", )
-    with col2:
-        team_filter = st.selectbox("팀 필터", ["전체"] + sorted(df["팀"].unique().tolist()), key="dr_search_team", on_change=dr_change_team)
-    if search:
-        df = df[df["드라이버"].str.contains(search, case=False)]
-    if team_filter != "전체":
-        df = df[df["팀"] == team_filter]
-    # 테이블
-    st.dataframe(
-        df.style.background_gradient(subset=["포인트"], cmap="Reds"),
-        use_container_width=True,
-        hide_index=True,
-    )
+        # 필터 레이아웃
+        col1, col2, col3 = st.columns([1, 1.5, 1.5])
+        with col1:
+            sel_season = st.selectbox("📅 시즌", ["전체"] + sorted(df["시즌"].unique().tolist(), reverse=True), key="sel_season")
+        with col2:
+            search_name = st.text_input("👤 드라이버 이름 검색", key="search_input").strip()
+        with col3:
+            teams = ["전체"] + sorted([str(t) for t in df["팀"].unique() if t is not None])
+            sel_team = st.selectbox("🏎️ 팀 선택", teams, key="sel_team")
 
-    # 포인트 시각화
-    st.markdown("### 📊 포인트 분포")
-    fig = px.bar(
-        df,
-        x="드라이버",
-        y="포인트",
-        color="팀",
-        color_discrete_map=TEAM_COLORS,
-        template="plotly_dark",
-        text="포인트",
-    )
-    fig.update_layout(
-        paper_bgcolor="rgba(0,0,0,0)",
-        plot_bgcolor="rgba(0,0,0,0)",
-        xaxis_tickangle=-45,
-    )
-    st.plotly_chart(fig, use_container_width=True)
+        # 버튼 레이아웃
+        btn_col1, btn_col2, _ = st.columns([1, 1, 5])
+        with btn_col1:
+            search_clicked = st.button("🔍 조회하기", use_container_width=True)
+        with btn_col2:
+            if st.button("🔄 초기화", use_container_width=True):
+                for key in ["sel_season", "search_input", "sel_team", "filtered_df"]:
+                    if key in st.session_state: del st.session_state[key]
+                st.rerun()
 
+        # 필터링 로직
+        if 'filtered_df' not in st.session_state or search_clicked:
+            f_df = df.copy()
+            if st.session_state.sel_season != "전체": f_df = f_df[f_df["시즌"] == st.session_state.sel_season]
+            if st.session_state.sel_team != "전체": f_df = f_df[f_df["팀"] == st.session_state.sel_team]
+            if st.session_state.search_input: f_df = f_df[f_df["드라이버"].str.contains(st.session_state.search_input, case=False)]
+            st.session_state.filtered_df = f_df.sort_values(["시즌", "순위"], ascending=[False, True])
 
+        res_df = st.session_state.filtered_df
+        if not res_df.empty:
+            st.success(f"검색 결과: {len(res_df)}건")
+            st.dataframe(res_df.style.format({"포인트": "{:.2f}"}).background_gradient(subset=["포인트"], cmap="Reds"), use_container_width=True, hide_index=True)
+            
+            st.markdown("---")
+            c1, c2 = st.columns(2)
+            with c1:
+                st.markdown("##### 🌍 전체 드라이버 국적 분포")
+                nat_counts = df_master['nationality'].value_counts().reset_index()
+                nat_counts.columns = ['국적', '인원수']
+                st.plotly_chart(px.bar(nat_counts.head(10), x='국적', y='인원수', template="plotly_dark", color_discrete_sequence=['#FF4444'], text='인원수'), use_container_width=True)
+            with c2:
+                st.markdown("##### 🔝 현재 리스트 포인트 Top 10")
+                top_10 = res_df.sort_values('포인트', ascending=False).head(10)
+                fig = px.bar(top_10, x='포인트', y='드라이버', orientation='h', 
+                             template="plotly_dark", 
+                             color='포인트', 
+                             color_continuous_scale='Reds', 
+                             text='포인트')
+                fig.update_traces(texttemplate='%{text:.2f}', textposition='outside')
+                fig.update_layout(yaxis={'categoryorder':'total ascending'}, showlegend=False)
+                st.plotly_chart(fig, use_container_width=True)
+        else:
+            st.error("조건에 맞는 드라이버가 없습니다.")
+
+   
 # 🏁 컨스트럭터 순위
 elif page == "🏁 컨스트럭터 순위":
     
