@@ -433,7 +433,7 @@ if page == "🏠 홈":
 
 # 🏆 드라이버 순위
 elif page == "🏆 드라이버 순위":
-    st.markdown("## 🏆 2026 드라이버 챔피언십")
+    st.markdown("## 🏆 2026 유진영 드라이버 챔피언십")
     df = get_driver_standings()
 
     # 검색창을 선택하면 필터창을 지우고, 반대면 반대로 만들기. on_change 속성에 콜백함수로 넣음
@@ -480,7 +480,7 @@ elif page == "🏆 드라이버 순위":
 
 # 🏁 컨스트럭터 순위
 elif page == "🏁 컨스트럭터 순위":
-    st.markdown("## 🏁 2026 컨스트럭터 챔피언십")
+    st.markdown("## 🏁 2026 컨스트럭터 챔피언십 수정할거임")
     df = get_constructor_standings()
 
     st.dataframe(
