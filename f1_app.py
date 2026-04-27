@@ -511,8 +511,8 @@ with st.sidebar:
     st.markdown("### 🔴 다음 레이스")
     st.markdown("""
     <div style='background:#E10600; border-radius:8px; padding:12px; text-align:center;'>
-        <div style='font-size:24px;'>🇺🇸</div>
-        <div style='font-weight:bold; font-size:16px;'>Miami GP</div>
+        <div style='font-size:24px; color : white;'>🇺🇸</div>
+        <div style='font-weight:bold; font-size:16px; color : white;'>Miami GP</div>
         <div style='font-size:12px; color:#FFD0D0;'>2026년 5월 1일</div>
     </div>
     """, unsafe_allow_html=True)
@@ -573,11 +573,12 @@ if page == "🏠 홈":
             color = TEAM_COLORS.get(row["팀"], "#888")
             medal = ["🥇", "🥈", "🥉", "4️⃣", "5️⃣"][row["순위"] - 1]
             st.markdown(f"""
+            <a href='https://www.formula1.com/en/drivers/{row['드라이버'].replace(" ", "-").lower()}' style='text-decoration: none; cursor: pointer;'>
             <div class='driver-card' style='border-left-color:{color}; --shadow-color:{color};'>
                 <div style='display:flex; justify-content:space-between; align-items:center;'>
                     <div>
                         <span style='font-size:20px; margin-right:8px;'>{medal}</span>
-                        <strong style='font-size:16px;'>{row['드라이버']}</strong>
+                        <strong style='font-size:16px; color: white;'>{row['드라이버']}</strong>
                         <span style='color:#888; font-size:13px; margin-left:8px;'>{row['팀']}</span>
                     </div>
                     <div style='text-align:right;'>
@@ -586,6 +587,7 @@ if page == "🏠 홈":
                     </div>
                 </div>
             </div>
+            </a>
             """, unsafe_allow_html=True)
 
     with col_b:
@@ -891,17 +893,26 @@ elif page == "📅 레이스 일정":
 
 # 📊 통계 분석 by. 김동민
 elif page == "📊 통계 분석":
-    st.markdown("## 📊 시즌별 통계 분석")
+    st.markdown("## 📊 시즌별 통계")
+    def state_reset():
+        st.session_state.dbut_active = {}
+        st.session_state.tbut_active = {}
+    if 'dbut_active' not in st.session_state:
+        st.session_state.dbut_active = {}
+    if 'tbut_active' not in st.session_state:
+        st.session_state.tbut_active = {}
 
     stat_col1, stat_col2 = st.columns([3, 1])
     stat_years_list = list(range(nowyears, 1949, -1))
     stat_years_list.insert(0, "전체")
-    tab1, tab2 = stat_col1.tabs(["드라이버 분석", "팀 분석"])
-    stat_years = stat_col2.selectbox("", stat_years_list, index=1, label_visibility="collapsed")
+    tab1, tab2 = stat_col1.tabs(["드라이버 통계", "팀 통계"])
+    stat_years = stat_col2.selectbox("", stat_years_list, index=1, label_visibility="collapsed", on_change=state_reset)
     driver_df = None
     constructor_df = None
     # 연도별 보기와 전체 기간 보기. 
     # 전체기간 보기면 선수 이름 기준, 승점과 포인트를 합쳐서 보여준다
+    spec_driver_all_df = get_driver_standings_all()
+    spec_constructor_all_df = get_driver_standings_all()
     if stat_years != "전체":
         driver_df = get_driver_standings_year(stat_years)
         constructor_df = get_constructor_standings_year(stat_years)
@@ -917,32 +928,54 @@ elif page == "📊 통계 분석":
         con_info_df = constructor_df.groupby('팀')[['순위']].last().reset_index()
         constructor_df = pd.merge(con_stats_df, con_info_df, on='팀').sort_values(by='포인트', ascending=False)
     with tab1:
-        st.markdown("### 포인트 vs 승수 산점도")
-        fig = px.scatter(
-            driver_df,
-            x="포인트",
-            y="승수",
-            color="팀",
-            size="포인트",
-            hover_name="드라이버",
-            color_discrete_map=TEAM_COLORS,
-            template="plotly_dark"
-        )
-        fig.update_layout(paper_bgcolor="rgba(0,0,0,0)", plot_bgcolor="rgba(30,30,46,0.5)")
-        fig.update_traces(textposition="top center", textfont_size=10)
-        st.plotly_chart(fig, use_container_width=True)
+        with st.spinner("Loading..."):
+            st.markdown("### 포인트 vs 승수 산점도")
+            fig = px.scatter(
+                driver_df,
+                x="포인트",
+                y="승수",
+                color="팀",
+                size="포인트",
+                hover_name="드라이버",
+                color_discrete_map=TEAM_COLORS,
+                template="plotly_dark"
+            )
+            fig.update_layout(paper_bgcolor="rgba(0,0,0,0)", plot_bgcolor="rgba(30,30,46,0.5)")
+            fig.update_traces(textposition="top center", textfont_size=10)
+            st.plotly_chart(fig, use_container_width=True)
 
         st.markdown("### 🏆 TOP 10 드라이버")
         top5 = driver_df.sort_values(by='포인트', ascending=False).reset_index().head(10)
-        print(top5)
-    
+        def change_status(dname):
+            cur_state = st.session_state.dbut_active.get(f"dbut_{dname}", False)
+            st.session_state.dbut_active[f"dbut_{dname}"] = not cur_state
         for rank , row in top5.iterrows():
             color = TEAM_COLORS.get(row["팀"], "#888")
             medal = ["🥇", "🥈", "🥉", "4️⃣", "5️⃣", "6️⃣", "7️⃣", "8️⃣", "9️⃣", "🔟"][rank]
-            with st.container():
-                st.markdown(f"""
-                <html><head></head><body>
-                <div class='driver-card' style='border-left-color:{color}; --shadow-color:{color};'>
+            # 키 값으로 공백이나 특수문자를 인식할 수 없으므로 제거한다.
+            dname = "".join(filter(str.isalnum, row['드라이버']))
+            but_css= f"""
+                .driver-card {{
+                    background: linear-gradient(145deg, #1E1E2E, #2E2E3E);
+                    border-left: 4px solid #E10600;
+                    border-radius: 8px;
+                    padding: 16px;
+                    margin: 8px 0;
+                    transition: all 0.2s ease 0s;
+                    --shadow-ox: 0px;
+                    --shadow-oy: 0px;
+                    --shadow-blur: 0px;
+                    --shadow-color: #000000;
+                    box-shadow: var(--shadow-ox) var(--shadow-oy) var(--shadow-blur) var(--shadow-color);
+                }}
+                .driver-card:hover{{
+                    border-left-width: 12px;
+                    filter: brightness(110%);
+                    --shadow-blur: 10px;
+                }}
+            """
+            but_html = f"""
+                <div class='driver-card' id='dcard-{dname}' style='border-left-color:{color}; --shadow-color:{color}; cursor : pointer;'>
                     <div style='display:flex; justify-content:space-between; align-items:center;'>
                         <div>
                             <span style='font-size:20px; margin-right:8px;'>{medal}</span>
@@ -959,40 +992,85 @@ elif page == "📊 통계 분석":
                         </div>
                     </div>
                 </div>
-                </body></html>
-                """, unsafe_allow_html=True)
+                """
+            but_js = f"""
+                export default function(component) {{
+                    const {{ setTriggerValue, parentElement }} = component;
+                    const btn = parentElement.querySelector('#dcard-{dname}');
+                    btn.onclick = () => {{
+                        // 파이썬 쪽으로 'clicked'라는 이름의 신호(true)를 쏩니다!
+                        // streamlit은 상태의 '변화'만을 인지하므로, 현재 시간을 보내서 계속 다른 값을 보내도록함
+                        setTriggerValue('clicked', Date.now()); 
+                    }};
+            }}
+            """
+            # 이름이 같은 but_comp간의 충돌을 막기 위해 이름에 연도를 추가로 붙여준다
+            but_comp = st.components.v2.component(f"dbut_{stat_years}_{dname}" ,css=but_css, html=but_html, js=but_js)
+            res = but_comp(on_clicked_change=lambda x=dname: change_status(x))
+            if st.session_state.dbut_active.get(f"dbut_{dname}", False):
+                with st.spinner(f"🏎️loading..."):
+                    spec_driver_df = spec_driver_all_df[spec_driver_all_df["드라이버"]==row["드라이버"]]
+                    st.line_chart(
+                        spec_driver_df,
+                        x='연도',
+                        y='포인트',
+                        color=color
+                    )
 
-            
 
     with tab2:
-        st.markdown("### 팀 포인트 비교")
-        fig = go.Figure(data=[
-            go.Bar(
-                name="포인트",
-                x=constructor_df["팀"],
-                y=constructor_df["포인트"],
-                marker_color=[TEAM_COLORS.get(t, "#888") for t in constructor_df["팀"]],
+        with st.spinner("Loading..."):
+            st.markdown("### 팀 포인트 비교")
+            fig = go.Figure(data=[
+                go.Bar(
+                    name="포인트",
+                    x=constructor_df["팀"],
+                    y=constructor_df["포인트"],
+                    marker_color=[TEAM_COLORS.get(t, "#888") for t in constructor_df["팀"]],
+                )
+            ])
+            fig.update_layout(
+                template="plotly_dark",
+                paper_bgcolor="rgba(0,0,0,0)",
+                plot_bgcolor="rgba(30,30,46,0.5)",
+                xaxis_tickangle=-30,
             )
-        ])
-        fig.update_layout(
-            template="plotly_dark",
-            paper_bgcolor="rgba(0,0,0,0)",
-            plot_bgcolor="rgba(30,30,46,0.5)",
-            xaxis_tickangle=-30,
-        )
-        st.plotly_chart(fig, use_container_width=True)
+            st.plotly_chart(fig, use_container_width=True)
 
         st.markdown("### 🏆 TOP 10 팀")
+        
         top5 = constructor_df.sort_values(by='포인트', ascending=False).reset_index().head(10)
-        print(top5)
-    
+
+        def tchange_status(tname):
+            cur_state = st.session_state.tbut_active.get(f"tbut_{tname}", False)
+            st.session_state.tbut_active[f"tbut_{tname}"] = not cur_state
         for rank , row in top5.iterrows():
             color = TEAM_COLORS.get(row["팀"], "#888")
             medal = ["🥇", "🥈", "🥉", "4️⃣", "5️⃣", "6️⃣", "7️⃣", "8️⃣", "9️⃣", "🔟"][rank]
-            with st.container():
-                st.markdown(f"""
-                <html><head></head><body>
-                <div class='driver-card' style='border-left-color:{color}; --shadow-color:{color};'>
+            # 키 값으로 공백이나 특수문자를 인식할 수 없으므로 제거한다.
+            tname = "".join(filter(str.isalnum, row['팀']))
+            but_css= f"""
+                .driver-card {{
+                    background: linear-gradient(145deg, #1E1E2E, #2E2E3E);
+                    border-left: 4px solid #E10600;
+                    border-radius: 8px;
+                    padding: 16px;
+                    margin: 8px 0;
+                    transition: all 0.2s ease 0s;
+                    --shadow-ox: 0px;
+                    --shadow-oy: 0px;
+                    --shadow-blur: 0px;
+                    --shadow-color: #000000;
+                    box-shadow: var(--shadow-ox) var(--shadow-oy) var(--shadow-blur) var(--shadow-color);
+                }}
+                .driver-card:hover{{
+                    border-left-width: 12px;
+                    filter: brightness(110%);
+                    --shadow-blur: 10px;
+                }}
+            """
+            but_html = f"""
+                <div class='driver-card' id='tcard-{tname}'style='border-left-color:{color}; --shadow-color:{color};'>
                     <div style='display:flex; justify-content:space-between; align-items:center;'>
                         <div>
                             <span style='font-size:20px; margin-right:8px;'>{medal}</span>
@@ -1008,9 +1086,37 @@ elif page == "📊 통계 분석":
                         </div>
                     </div>
                 </div>
-                </body></html>
-                """, unsafe_allow_html=True)
+                """
+            but_js = f"""
+                export default function(component) {{
+                    const {{ setTriggerValue, parentElement }} = component;
+                    const btn = parentElement.querySelector('#tcard-{tname}');
+                    btn.onclick = () => {{
+                        // 파이썬 쪽으로 'clicked'라는 이름의 신호(true)를 쏩니다!
+                        // streamlit은 상태의 '변화'만을 인지하므로, 현재 시간을 보내서 계속 다른 값을 보내도록함
+                        setTriggerValue('clicked', Date.now()); 
+                    }};
+            }}
+            """
+            # 이름이 같은 but_comp간의 충돌을 막기 위해 이름에 연도를 추가로 붙여준다
+            but_comp = st.components.v2.component(f"tbut_{stat_years}_{tname}" ,css=but_css, html=but_html, js=but_js)
+            res = but_comp(on_clicked_change=lambda x=tname: tchange_status(x))
+            if st.session_state.tbut_active.get(f"tbut_{tname}", False):
+                with st.spinner(f"🏎️loading..."):
+                    spec_constructor_df = spec_constructor_all_df[spec_constructor_all_df["팀"]==row["팀"]]
+                    st.line_chart(
+                        spec_constructor_df,
+                        x='연도',
+                        y='포인트',
+                        color=color
+                    )
 
+
+
+
+
+        
+            
 # ❓ 자주 묻는 질문 (FAQ) 페이지
 elif page == "❓ FAQ":
     # 헤더 디자인
