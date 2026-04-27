@@ -5,6 +5,9 @@ import plotly.graph_objects as go
 import requests
 import pymysql
 import sqlalchemy # 재원 추가
+from datetime import datetime
+from sqlalchemy import create_engine 
+
 
 # ── DB 설정 ─────────────────────────────────────────────
 
@@ -219,32 +222,137 @@ st.markdown("""
     .stDataFrame {
         background: #1E1E2E !important;
     }
+            
+                
+    /*
+    by. 김동민 
+    */
+    
+    .legendtext{
+        fill: #FFFFFF !important;
+        transition: all 0.2s ease 0s;
+        --legendtext-g-radius: 0px;
+        box-shadow: 0px 0px var(--legendtext-g-radius) #FFFFFF;
+    }
+    .statSelectBox{
+        margin-top: -12px;
+    }
 </style>
 """, unsafe_allow_html=True)
+
+# ── driver_master, season_driver_standings f1db 로드 ──────────────────────────────────────────
+@st.cache_data(ttl=600)
+def load_db_data():
+    """
+    F1 데이터베이스에서 드라이버 순위와 마스터 정보를 로드하는 함수입니다.
+    
+    Returns:
+        df_final (pd.DataFrame): 시즌, 순위, 드라이버, 팀, 포인트, 국적이 포함된 가공된 데이터
+        df_master (pd.DataFrame): 드라이버 전체 상세 정보 (마스터 데이터)
+    
+    Note:
+        - 10분(600초) 동안 캐시가 유지됩니다.
+        - mysql+pymysql 엔진을 사용하여 DB에 접속합니다.
+    """
+    # DB 접속 정보
+    user, password, host, port, db_name = "teamf1", "1111", "192.168.0.51", "3306", "f1db"
+    
+    try:
+        # 1. DB 연결 엔진 생성
+        engine = create_engine(f"mysql+pymysql://{user}:{password}@{host}:{port}/{db_name}")
+        
+        # 2. 데이터 불러오기 (순위 정보 및 마스터 정보)
+        df_stats = pd.read_sql("SELECT * FROM season_driver_standings", engine)
+        df_master = pd.read_sql("SELECT * FROM drivers_master", engine)
+        
+        # 3. 드라이버 풀네임 생성 (성 + 이름)
+        df_stats['드라이버'] = df_stats['first_name'].astype(str) + " " + df_stats['last_name'].astype(str)
+        
+        # 4. 컬럼명 한글화 (가독성 향상)
+        column_map = {
+            'season': '시즌', 
+            'season_position': '순위', 
+            'season_points': '포인트', 
+            'team_name': '팀', 
+            'driver_id': '선수번호'
+        }
+        df_stats = df_stats.rename(columns=column_map)
+        
+        # 5. 데이터 타입 변환 및 반올림 (포인트)
+        df_stats['포인트'] = pd.to_numeric(df_stats['포인트'], errors='coerce').round(2)
+        
+        # 6. 마스터 정보(국적)와 순위 정보 결합 (Merge)
+        df_master_sub = df_master[['driver_id', 'nationality']].rename(columns={'driver_id': '선수번호', 'nationality': '국적'})
+        df_final = pd.merge(df_stats, df_master_sub, on='선수번호', how='left')
+        
+        # 7. 최종 필요한 컬럼만 추출하여 반환
+        return df_final[['시즌', '순위', '드라이버', '팀', '포인트', '국적']], df_master
+
+    except Exception as e:
+        st.error(f"DB 연동 실패: {e}")
+        return None, None
 
 
 # ── 데이터 (Ergast API 또는 하드코딩) ────────────────────────
 
+# by. 김동민 1--------------------------------------------
+# 현재 연도
+nowyears = datetime.now().year
+# 판다스 표시 숫자 소수 둘째자리에서 절삭, 정수는 전부 절삭
+def format_points(val):
+    if val == int(val):
+        return int(val)
+    return round(val, 2)
+# 
+
 @st.cache_data(ttl=3600)
-def get_driver_standings():
-    """Ergast API에서 2026 드라이버 순위 가져오기"""
+# 연도를 주면 드라이버 정보에 대한 데이터 프레임을 반환, api
+def get_driver_standings(years = nowyears):
+    """Jolpica API에서 드라이버 순위 가져오기 (안전한 파싱 적용)"""
+    url = f"https://api.jolpi.ca/ergast/f1/{years}/driverStandings.json"
+    
     try:
-        url = "https://ergast.com/api/f1/currenta/driverStandings.json"
         res = requests.get(url, timeout=5)
-        data = res.json()
-        standings = data["MRData"]["StandingsTable"]["StandingsLists"][0]["DriverStandings"]
-        rows = []
-        for s in standings:
-            rows.append({
-                "순위": int(s["position"]),
-                "드라이버": s["Driver"]["givenName"] + " " + s["Driver"]["familyName"],
-                "국적": s["Driver"]["nationality"],
-                "팀": s["Constructors"][0]["name"],
-                "포인트": int(s["points"]),
-                "승수": int(s["wins"]),
-            })
-        return pd.DataFrame(rows)
-    except Exception:
+
+        if res.status_code == 200:
+            data = res.json()
+            
+            # 1. 최상단 리스트가 비어있는지 안전하게 확인
+            standings_lists = data.get("MRData", {}).get("StandingsTable", {}).get("StandingsLists", [])
+            
+            # 데이터가 아예 없는 연도라면 빈 데이터프레임 반환
+            if not standings_lists:
+                print(f"경고: {years}년의 순위 데이터가 존재하지 않습니다.")
+                return pd.DataFrame() 
+            
+            standings = standings_lists[0].get("DriverStandings", [])
+            rows = []
+            
+            for s in standings:
+                # Driver 정보도 get으로 안전하게 가져오기
+                driver = s.get("Driver", {})
+                
+                # 2. 팀(Constructor) 정보가 비어있을 수 있는 상황 대비
+                constructors = s.get("Constructors", [])
+                team_name = constructors[0].get("name", "개인/알수없음") if constructors else "개인/알수없음"
+                
+                rows.append({
+                    "순위": int(s.get("position", 0)),
+                    "드라이버": f"{driver.get('givenName', '')} {driver.get('familyName', '')}".strip(),
+                    "국적": driver.get("nationality", "Unknown"),
+                    "팀": team_name,
+                    "포인트": float(s.get("points", 0.0)), # 3. 절반 포인트(0.5) 룰을 위해 float 사용
+                    "승수": int(s.get("wins", 0)),
+                })
+            
+            df = pd.DataFrame(rows)
+            df['포인트'] = df["포인트"].apply(format_points)
+            return df
+        else:
+            print(f"API 호출 실패 (상태 코드: {res.status_code}). 샘플 데이터를 반환합니다.")
+            
+    except requests.exceptions.RequestException as e:
+        print(f"네트워크 오류 발생: {e}. 샘플 데이터를 반환합니다.")
         # API 실패 시 샘플 데이터
         return pd.DataFrame([
             {"순위": 1, "드라이버": "Max Verstappen", "국적": "Dutch", "팀": "Red Bull Racing", "포인트": 77, "승수": 3},
@@ -258,6 +366,57 @@ def get_driver_standings():
             {"순위": 9, "드라이버": "Lance Stroll", "국적": "Canadian", "팀": "Aston Martin", "포인트": 9, "승수": 0},
             {"순위": 10, "드라이버": "Nico Hulkenberg", "국적": "German", "팀": "Haas F1 Team", "포인트": 6, "승수": 0},
         ])
+# driver_standings와 마찬가지로 수정
+# 연도를 주면 팀 통계를 반환, api
+@st.cache_data(ttl=3600)
+def get_constructor_standings(years = nowyears):
+    
+    url = f"https://api.jolpi.ca/ergast/f1/{years}/constructorStandings.json"
+    res = requests.get(url, timeout=5)
+    if res.status_code == 200:
+        data = res.json()
+        standings_list = data.get("MRData", {}).get("StandingsTable", {}).get("StandingsLists", {})
+        if not standings_list:
+            return pd.DataFrame([{"순위" : 0, "팀" : "There were no teams in this year", "포인트" : 0, "승수" : 0}])
+        standings = standings_list[0].get("ConstructorStandings", {})
+        rows = []
+        for s in standings:
+            constructor = s.get("Constructor", {})
+            rows.append({
+                "순위": int(s.get("position", 0)),
+                "팀": constructor.get("name", 'unknown'),
+                "포인트": float(s.get("points", 0)),
+                "승수": int(s.get("wins", 0)),
+            })
+        df = pd.DataFrame(rows)
+        df['포인트'] = df["포인트"].apply(format_points)
+        return df
+    else:
+        return pd.DataFrame([
+            {"순위": 1, "팀": "Red Bull Racing", "포인트": 110, "승수": 3},
+            {"순위": 2, "팀": "Ferrari", "포인트": 104, "승수": 1},
+            {"순위": 3, "팀": "McLaren", "포인트": 94, "승수": 0},
+            {"순위": 4, "팀": "Mercedes", "포인트": 37, "승수": 0},
+            {"순위": 5, "팀": "Aston Martin", "포인트": 33, "승수": 0},
+        ])
+# 전체 연도의 드라이버/팀 정보, 개별 연도의 드라이버/팀 정보를 csv로 받음
+@st.cache_data(ttl=3600)
+def get_driver_standings_all():
+    df = pd.read_csv("data/driver_standing.csv")
+    return df
+@st.cache_data(ttl=3600)
+def get_constructor_standings_all():
+    df = pd.read_csv("data/constructor_standing.csv")
+    return df
+def get_driver_standings_year(years):
+    all_df = get_driver_standings_all()
+    return all_df[all_df["연도"]==years]
+def get_constructor_standings_year(years):
+    all_df = get_constructor_standings_all()
+    return all_df[all_df["연도"]==years]
+
+# 여기까지 김동민 작업 1 -----------------------------------
+
 
 
 @st.cache_data(ttl=3600)
@@ -320,11 +479,12 @@ RACE_SCHEDULE = [
 # 팀 컬러
 TEAM_COLORS = {
     "Red Bull Racing": "#3671C6",
+    "Red Bull": "#3671C6",
     "Ferrari": "#E8002D",
     "McLaren": "#FF8000",
     "Mercedes": "#27F4D2",
     "Aston Martin": "#358C75",
-    "Alpine": "#FF87BC",
+    "Alpine F1 Team": "#FF87BC",
     "Williams": "#64C4FF",
     "Haas F1 Team": "#B6BABD",
     "Kick Sauber": "#52E252",
@@ -451,51 +611,70 @@ if page == "🏠 홈":
 
 # 🏆 드라이버 순위
 elif page == "🏆 드라이버 순위":
-    st.markdown("## 🏆 2026 유진영 드라이버 챔피언십")
-    df = get_driver_standings()
+    st.markdown("## 🏆 드라이버 챔피언십 조회")
+    df, df_master = load_db_data()
 
-    # 검색창을 선택하면 필터창을 지우고, 반대면 반대로 만들기. on_change 속성에 콜백함수로 넣음
-    def dr_change_driver():
-        st.session_state.dr_search_team = ""
-    def dr_change_team():
-        st.session_state.dr_search_driver = ""
+    if df is not None:
+        # 세션 상태 초기화
+        if "sel_season" not in st.session_state: st.session_state.sel_season = "전체"
+        if "search_input" not in st.session_state: st.session_state.search_input = ""
+        if "sel_team" not in st.session_state: st.session_state.sel_team = "전체"
 
-    # 검색 & 필터
-    col1, col2 = st.columns([3, 1])
-    with col1:
-        search = st.text_input("🔍 드라이버 검색", key="dr_search_driver", on_change=dr_change_driver, placeholder="이름을 입력하세요...", )
-    with col2:
-        team_filter = st.selectbox("팀 필터", ["전체"] + sorted(df["팀"].unique().tolist()), key="dr_search_team", on_change=dr_change_team)
-    if search:
-        df = df[df["드라이버"].str.contains(search, case=False)]
-    if team_filter != "전체":
-        df = df[df["팀"] == team_filter]
-    # 테이블
-    st.dataframe(
-        df.style.background_gradient(subset=["포인트"], cmap="Reds"),
-        use_container_width=True,
-        hide_index=True,
-    )
+        # 필터 레이아웃
+        col1, col2, col3 = st.columns([1, 1.5, 1.5])
+        with col1:
+            sel_season = st.selectbox("📅 시즌", ["전체"] + sorted(df["시즌"].unique().tolist(), reverse=True), key="sel_season")
+        with col2:
+            search_name = st.text_input("👤 드라이버 이름 검색", key="search_input").strip()
+        with col3:
+            teams = ["전체"] + sorted([str(t) for t in df["팀"].unique() if t is not None])
+            sel_team = st.selectbox("🏎️ 팀 선택", teams, key="sel_team")
 
-    # 포인트 시각화
-    st.markdown("### 📊 포인트 분포")
-    fig = px.bar(
-        df,
-        x="드라이버",
-        y="포인트",
-        color="팀",
-        color_discrete_map=TEAM_COLORS,
-        template="plotly_dark",
-        text="포인트",
-    )
-    fig.update_layout(
-        paper_bgcolor="rgba(0,0,0,0)",
-        plot_bgcolor="rgba(0,0,0,0)",
-        xaxis_tickangle=-45,
-    )
-    st.plotly_chart(fig, use_container_width=True)
+        # 버튼 레이아웃
+        btn_col1, btn_col2, _ = st.columns([1, 1, 5])
+        with btn_col1:
+            search_clicked = st.button("🔍 조회하기", use_container_width=True)
+        with btn_col2:
+            if st.button("🔄 초기화", use_container_width=True):
+                for key in ["sel_season", "search_input", "sel_team", "filtered_df"]:
+                    if key in st.session_state: del st.session_state[key]
+                st.rerun()
 
+        # 필터링 로직
+        if 'filtered_df' not in st.session_state or search_clicked:
+            f_df = df.copy()
+            if st.session_state.sel_season != "전체": f_df = f_df[f_df["시즌"] == st.session_state.sel_season]
+            if st.session_state.sel_team != "전체": f_df = f_df[f_df["팀"] == st.session_state.sel_team]
+            if st.session_state.search_input: f_df = f_df[f_df["드라이버"].str.contains(st.session_state.search_input, case=False)]
+            st.session_state.filtered_df = f_df.sort_values(["시즌", "순위"], ascending=[False, True])
 
+        res_df = st.session_state.filtered_df
+        if not res_df.empty:
+            st.success(f"검색 결과: {len(res_df)}건")
+            st.dataframe(res_df.style.format({"포인트": "{:.2f}"}).background_gradient(subset=["포인트"], cmap="Reds"), use_container_width=True, hide_index=True)
+            
+            st.markdown("---")
+            c1, c2 = st.columns(2)
+            with c1:
+                st.markdown("##### 🌍 전체 드라이버 국적 분포")
+                nat_counts = df_master['nationality'].value_counts().reset_index()
+                nat_counts.columns = ['국적', '인원수']
+                st.plotly_chart(px.bar(nat_counts.head(10), x='국적', y='인원수', template="plotly_dark", color_discrete_sequence=['#FF4444'], text='인원수'), use_container_width=True)
+            with c2:
+                st.markdown("##### 🔝 현재 리스트 포인트 Top 10")
+                top_10 = res_df.sort_values('포인트', ascending=False).head(10)
+                fig = px.bar(top_10, x='포인트', y='드라이버', orientation='h', 
+                             template="plotly_dark", 
+                             color='포인트', 
+                             color_continuous_scale='Reds', 
+                             text='포인트')
+                fig.update_traces(texttemplate='%{text:.2f}', textposition='outside')
+                fig.update_layout(yaxis={'categoryorder':'total ascending'}, showlegend=False)
+                st.plotly_chart(fig, use_container_width=True)
+        else:
+            st.error("조건에 맞는 드라이버가 없습니다.")
+
+   
 # 🏁 컨스트럭터 순위
 elif page == "🏁 컨스트럭터 순위":
     
@@ -561,62 +740,41 @@ elif page == "📅 레이스 일정":
     st.markdown("## 📅 F1 레이스 일정")
 
     # ─────────────────────────────────────────────────────────
-    # 연도별 레이스 일정을 API에서 가져오는 함수예요
-    # @st.cache_data → 같은 연도는 다시 불러오지 않고 저장해둬요 (빠름!)
+    # 연도별 레이스 일정을 API에서 가져오는 함수
+    # @st.cache_data → 같은 연도는 다시 불러오지 않고 저장
     # ─────────────────────────────────────────────────────────
-    # @st.cache_data(ttl=3600)
-    # def get_schedule(year):
-    #     """
-    #     Ergast API에서 특정 연도의 레이스 일정을 가져와요.
-    #     API가 안 되면 빈 표를 돌려줘요.
-    #     """
-    #     try:
-    #         # API 주소에 연도를 넣어서 요청해요
-    #         url = f"https://ergast.com/api/f1/{year}.json"
-    #         response = requests.get(url, timeout=5)  # 5초 안에 응답 없으면 포기
-    #         data = response.json()
-
-    #         # API 응답에서 레이스 목록만 꺼내요
-    #         races = data["MRData"]["RaceTable"]["Races"]
-
-    #         # 각 레이스 정보를 깔끔하게 정리해요
-    #         rows = []
-    #         for race in races:
-    #             rows.append({
-    #                 "라운드":  race["round"],           # 몇 번째 레이스인지
-    #                 "그랑프리": race["raceName"],         # 레이스 이름
-    #                 "나라":    race["Circuit"]["Location"]["country"],   # 나라
-    #                 "도시":    race["Circuit"]["Location"]["locality"],  # 도시
-    #                 "서킷":    race["Circuit"]["circuitName"],           # 서킷 이름
-    #                 "날짜":    race["date"],              # 레이스 날짜
-    #             })
-
-    #         return pd.DataFrame(rows)  # 표 형태로 변환해서 반환
-
-    #     except Exception:
-    #         # API가 실패하면 빈 표를 반환해요
-    #         return pd.DataFrame()
     @st.cache_data(ttl=3600)
     def get_schedule(year):
-        conn = get_connection()
+        """Jolpica API에서 특정 연도의 레이스 일정을 가져옵니다."""
+        try:
+            url = f"https://api.jolpi.ca/ergast/f1/{year}.json"
+            response = requests.get(url, timeout=10)
 
-        query = """
-        SELECT 
-            r.round AS 라운드,
-            r.name AS 그랑프리,
-            c.location AS 도시,
-            c.country AS 나라,
-            c.name AS 서킷,
-            r.date AS 날짜
-        FROM f1db.races r
-        JOIN f1db.circuits c 
-            ON r.circuitId = c.circuitId
-        WHERE r.year = %s
-        ORDER BY r.round
-        """
+            if response.status_code != 200:
+                return pd.DataFrame()
 
-        df = pd.read_sql(query, conn, params=[year])
-        return df
+            data = response.json()
+            races = data.get("MRData", {}).get("RaceTable", {}).get("Races", [])
+
+            if not races:
+                return pd.DataFrame()
+
+            rows = []
+            for race in races:
+                rows.append({
+                    "라운드": int(race.get("round", 0)),
+                    "그랑프리": race.get("raceName", ""),
+                    "나라": race.get("Circuit", {}).get("Location", {}).get("country", ""),
+                    "도시": race.get("Circuit", {}).get("Location", {}).get("locality", ""),
+                    "서킷": race.get("Circuit", {}).get("circuitName", ""),
+                    "날짜": race.get("date", ""),
+                })
+
+            return pd.DataFrame(rows)
+
+        except Exception as e:
+            print(f"레이스 일정 API 오류: {e}")
+            return pd.DataFrame()
 
     # ─────────────────────────────────────────────────────────
     # 연도 선택 드롭다운 (2026 ~ 1950)
@@ -648,7 +806,7 @@ elif page == "📅 레이스 일정":
 
         오늘 = date.today()  # 오늘 날짜
 
-        # 각 레이스가 완료됐는지, 다음인지, 예정인지 자동으로 판단해요
+        # 각 레이스가 완료됐는지, 다음인지, 예정인지 자동으로 판단
         상태_목록 = []
         다음레이스_찾음 = False  # 다음 레이스를 아직 못 찾은 상태
 
@@ -722,18 +880,36 @@ elif page == "📅 레이스 일정":
             height=560,                 # 표 높이
         )
 
-        st.caption("📌 날짜 기준은 레이스 당일이에요. 데이터 출처: Ergast Motor Racing API")
+        st.caption("📌 날짜 기준은 레이스 당일이에요.")
 
 
-# 📊 통계 분석
+# 📊 통계 분석 by. 김동민
 elif page == "📊 통계 분석":
-    st.markdown("## 📊 2026 시즌 통계 분석")
+    st.markdown("## 📊 시즌별 통계 분석")
 
-    driver_df = get_driver_standings()
-    constructor_df = get_constructor_standings()
+    stat_col1, stat_col2 = st.columns([3, 1])
+    stat_years_list = list(range(nowyears, 1949, -1))
+    stat_years_list.insert(0, "전체")
+    tab1, tab2 = stat_col1.tabs(["드라이버 분석", "팀 분석"])
+    stat_years = stat_col2.selectbox("", stat_years_list, index=1, label_visibility="collapsed")
+    driver_df = None
+    constructor_df = None
+    # 연도별 보기와 전체 기간 보기. 
+    # 전체기간 보기면 선수 이름 기준, 승점과 포인트를 합쳐서 보여준다
+    if stat_years != "전체":
+        driver_df = get_driver_standings_year(stat_years)
+        constructor_df = get_constructor_standings_year(stat_years)
+    else:
+        driver_df = get_driver_standings_all()
+        constructor_df = get_constructor_standings_all()
+        # 이름 기준으로 포인트, 승수는 더하고, 국적과 팀은 마지막 정보 사용.
+        stats_df = driver_df.groupby('드라이버')[['포인트', '승수']].sum().reset_index()
+        info_df = driver_df.groupby('드라이버')[['순위', '국적', '팀']].last().reset_index()
+        driver_df = pd.merge(stats_df, info_df, on='드라이버')
 
-    tab1, tab2 = st.tabs(["드라이버 분석", "팀 분석"])
-
+        con_stats_df = constructor_df.groupby('팀')[['포인트', '승수']].sum().reset_index()
+        con_info_df = constructor_df.groupby('팀')[['순위']].last().reset_index()
+        constructor_df = pd.merge(con_stats_df, con_info_df, on='팀').sort_values(by='포인트', ascending=False)
     with tab1:
         st.markdown("### 포인트 vs 승수 산점도")
         fig = px.scatter(
@@ -749,6 +925,38 @@ elif page == "📊 통계 분석":
         fig.update_layout(paper_bgcolor="rgba(0,0,0,0)", plot_bgcolor="rgba(30,30,46,0.5)")
         fig.update_traces(textposition="top center", textfont_size=10)
         st.plotly_chart(fig, use_container_width=True)
+
+        st.markdown("### 🏆 TOP 10 드라이버")
+        top5 = driver_df.sort_values(by='포인트', ascending=False).reset_index().head(10)
+        print(top5)
+    
+        for rank , row in top5.iterrows():
+            color = TEAM_COLORS.get(row["팀"], "#888")
+            medal = ["🥇", "🥈", "🥉", "4️⃣", "5️⃣", "6️⃣", "7️⃣", "8️⃣", "9️⃣", "🔟"][rank]
+            with st.container():
+                st.markdown(f"""
+                <html><head></head><body>
+                <div class='driver-card' style='border-left-color:{color}; --shadow-color:{color};'>
+                    <div style='display:flex; justify-content:space-between; align-items:center;'>
+                        <div>
+                            <span style='font-size:20px; margin-right:8px;'>{medal}</span>
+                            <strong style='font-size:16px;'>{row['드라이버']}</strong>
+                            <span style='color:#888; font-size:13px; margin-left:8px;'>{row['팀']}</span>
+                        </div>
+                        <div style='text-align:right;position:absolute; right: 20%;'>
+                            <div style='color:{color}; font-size:20px; font-weight:bold;'>{row['승수']}</div>
+                            <div style='color:#888; font-size:11px;'>WINS</div>
+                        </div>
+                        <div style='text-align:right;'>
+                            <div style='color:{color}; font-size:20px; font-weight:bold;'>{row['포인트']}</div>
+                            <div style='color:#888; font-size:11px;'>PTS</div>
+                        </div>
+                    </div>
+                </div>
+                </body></html>
+                """, unsafe_allow_html=True)
+
+            
 
     with tab2:
         st.markdown("### 팀 포인트 비교")
@@ -767,4 +975,32 @@ elif page == "📊 통계 분석":
             xaxis_tickangle=-30,
         )
         st.plotly_chart(fig, use_container_width=True)
-        st.header("수정사항 테스트")
+
+        st.markdown("### 🏆 TOP 10 팀")
+        top5 = constructor_df.sort_values(by='포인트', ascending=False).reset_index().head(10)
+        print(top5)
+    
+        for rank , row in top5.iterrows():
+            color = TEAM_COLORS.get(row["팀"], "#888")
+            medal = ["🥇", "🥈", "🥉", "4️⃣", "5️⃣", "6️⃣", "7️⃣", "8️⃣", "9️⃣", "🔟"][rank]
+            with st.container():
+                st.markdown(f"""
+                <html><head></head><body>
+                <div class='driver-card' style='border-left-color:{color}; --shadow-color:{color};'>
+                    <div style='display:flex; justify-content:space-between; align-items:center;'>
+                        <div>
+                            <span style='font-size:20px; margin-right:8px;'>{medal}</span>
+                            <strong style='font-size:16px;'>{row['팀']}</strong>
+                        </div>
+                        <div style='text-align:right;position:absolute; right: 20%;'>
+                            <div style='color:{color}; font-size:20px; font-weight:bold;'>{row['승수']}</div>
+                            <div style='color:#888; font-size:11px;'>WINS</div>
+                        </div>
+                        <div style='text-align:right;'>
+                            <div style='color:{color}; font-size:20px; font-weight:bold;'>{row['포인트']}</div>
+                            <div style='color:#888; font-size:11px;'>PTS</div>
+                        </div>
+                    </div>
+                </div>
+                </body></html>
+                """, unsafe_allow_html=True)
