@@ -611,6 +611,12 @@ if page == "🏠 홈":
 
 # 🏆 드라이버 순위
 elif page == "🏆 드라이버 순위":
+    # 포커싱 이동
+    def dr_change_driver():
+        st.session_state.sel_team = ""
+    def dr_change_team():
+        st.session_state.search_input = ""
+
     st.markdown("## 🏆 드라이버 챔피언십 조회")
     df, df_master = load_db_data()
 
@@ -625,10 +631,10 @@ elif page == "🏆 드라이버 순위":
         with col1:
             sel_season = st.selectbox("📅 시즌", ["전체"] + sorted(df["시즌"].unique().tolist(), reverse=True), key="sel_season")
         with col2:
-            search_name = st.text_input("👤 드라이버 이름 검색", key="search_input").strip()
+            search_name = st.text_input("👤 드라이버 이름 검색", key="search_input", on_change=dr_change_driver).strip()
         with col3:
             teams = ["전체"] + sorted([str(t) for t in df["팀"].unique() if t is not None])
-            sel_team = st.selectbox("🏎️ 팀 선택", teams, key="sel_team")
+            sel_team = st.selectbox("🏎️ 팀 선택", teams, key="sel_team", on_change=dr_change_team)
 
         # 버튼 레이아웃
         btn_col1, btn_col2, _ = st.columns([1, 1, 5])
