@@ -3,8 +3,22 @@ import pandas as pd
 import plotly.express as px
 import plotly.graph_objects as go
 import requests
+import pymysql
 
-# ── 페이지 설정 ──────────────────────────────────────────────
+# ── DB 설정 ─────────────────────────────────────────────
+
+@st.cache_resource
+def get_connection():
+    return pymysql.connect(
+        host="192.168.0.51",      # ← DB 주소
+        user="teamf1",           # ← 계정
+        password="비밀번호",    # ← 비번
+        database="f1db",       # ← DB 이름
+        charset="utf8mb4",
+        cursorclass=pymysql.cursors.DictCursor
+    )
+
+# ── 페이지 설정 ─────────────────────────────────────────────
 st.set_page_config(
     page_title="F1 Dashboard",
     page_icon="🏎️",
@@ -514,31 +528,171 @@ elif page == "🏁 컨스트럭터 순위":
 
 # 📅 레이스 일정
 elif page == "📅 레이스 일정":
-    st.markdown("## 📅 2026 레이스 일정")
+    st.markdown("## 📅 F1 레이스 일정")
 
-    schedule_df = pd.DataFrame(RACE_SCHEDULE)
+    # ─────────────────────────────────────────────────────────
+    # 연도별 레이스 일정을 API에서 가져오는 함수예요
+    # @st.cache_data → 같은 연도는 다시 불러오지 않고 저장해둬요 (빠름!)
+    # ─────────────────────────────────────────────────────────
+    # @st.cache_data(ttl=3600)
+    # def get_schedule(year):
+    #     """
+    #     Ergast API에서 특정 연도의 레이스 일정을 가져와요.
+    #     API가 안 되면 빈 표를 돌려줘요.
+    #     """
+    #     try:
+    #         # API 주소에 연도를 넣어서 요청해요
+    #         url = f"https://ergast.com/api/f1/{year}.json"
+    #         response = requests.get(url, timeout=5)  # 5초 안에 응답 없으면 포기
+    #         data = response.json()
 
-    for _, row in schedule_df.iterrows():
-        is_next = row["상태"] == "다음 레이스 🔴"
-        is_done = row["상태"] == "완료"
+    #         # API 응답에서 레이스 목록만 꺼내요
+    #         races = data["MRData"]["RaceTable"]["Races"]
 
-        border = "#E10600" if is_next else ("#555" if is_done else "#2E2E3E")
-        bg = "rgba(225,6,0,0.1)" if is_next else "rgba(30,30,46,0.8)"
+    #         # 각 레이스 정보를 깔끔하게 정리해요
+    #         rows = []
+    #         for race in races:
+    #             rows.append({
+    #                 "라운드":  race["round"],           # 몇 번째 레이스인지
+    #                 "그랑프리": race["raceName"],         # 레이스 이름
+    #                 "나라":    race["Circuit"]["Location"]["country"],   # 나라
+    #                 "도시":    race["Circuit"]["Location"]["locality"],  # 도시
+    #                 "서킷":    race["Circuit"]["circuitName"],           # 서킷 이름
+    #                 "날짜":    race["date"],              # 레이스 날짜
+    #             })
 
-        col1, col2, col3, col4 = st.columns([1, 3, 3, 2])
+    #         return pd.DataFrame(rows)  # 표 형태로 변환해서 반환
+
+    #     except Exception:
+    #         # API가 실패하면 빈 표를 반환해요
+    #         return pd.DataFrame()
+    @st.cache_data(ttl=3600)
+    def get_schedule(year):
+        conn = get_connection()
+
+        query = """
+        SELECT 
+            r.round AS 라운드,
+            r.name AS 그랑프리,
+            c.location AS 도시,
+            c.country AS 나라,
+            c.name AS 서킷,
+            r.date AS 날짜
+        FROM f1db.races r
+        JOIN f1db.circuits c 
+            ON r.circuitId = c.circuitId
+        WHERE r.year = %s
+        ORDER BY r.round
+        """
+
+        df = pd.read_sql(query, conn, params=[year])
+        return df
+
+    # ─────────────────────────────────────────────────────────
+    # 연도 선택 드롭다운 (2026 ~ 1950)
+    # list(range(2026, 1949, -1)) → [2026, 2025, 2024, ..., 1950]
+    # ─────────────────────────────────────────────────────────
+    연도_목록 = list(range(2026, 1949, -1))  # 2026부터 1950까지 숫자 목록 만들기
+
+    선택_연도 = st.selectbox(
+        "📅 연도를 선택하세요",
+        options=연도_목록,   # 드롭다운에 보여줄 목록
+        index=0,             # 기본값: 첫 번째 항목 (2026)
+    )
+
+    # ─────────────────────────────────────────────────────────
+    # 선택한 연도의 데이터 불러오기
+    # ─────────────────────────────────────────────────────────
+    with st.spinner(f"⏳ {선택_연도}년 일정을 불러오는 중..."):
+        schedule_df = get_schedule(선택_연도)
+
+    # 데이터가 없으면 안내 메시지 표시
+    if schedule_df.empty:
+        st.warning(f"⚠️ {선택_연도}년 데이터를 불러올 수 없어요. 잠시 후 다시 시도해주세요.")
+
+    else:
+        # ─────────────────────────────────────────────────────
+        # 오늘 날짜 기준으로 상태 자동 계산
+        # ─────────────────────────────────────────────────────
+        from datetime import date
+
+        오늘 = date.today()  # 오늘 날짜
+
+        # 각 레이스가 완료됐는지, 다음인지, 예정인지 자동으로 판단해요
+        상태_목록 = []
+        다음레이스_찾음 = False  # 다음 레이스를 아직 못 찾은 상태
+
+        for _, row in schedule_df.iterrows():
+            레이스날짜 = date.fromisoformat(row["날짜"])  # 문자열 → 날짜로 변환
+
+            if 레이스날짜 < 오늘:
+                상태_목록.append("✅ 완료")           # 오늘보다 이전 = 완료
+            elif not 다음레이스_찾음:
+                상태_목록.append("🔴 다음 레이스")    # 처음 만나는 미래 날짜 = 다음 레이스
+                다음레이스_찾음 = True
+            else:
+                상태_목록.append("🔘 예정")            # 그 이후 = 예정
+
+        schedule_df["상태"] = 상태_목록  # 표에 상태 컬럼 추가
+
+        # ─────────────────────────────────────────────────────
+        # 통계 요약 숫자 (상단에 크게 표시)
+        # ─────────────────────────────────────────────────────
+        전체 = len(schedule_df)
+        완료수 = schedule_df["상태"].str.contains("완료").sum()
+        예정수 = schedule_df["상태"].str.contains("예정").sum()
+
+        col1, col2, col3 = st.columns(3)
         with col1:
-            st.markdown(f"<div style='color:#888; text-align:center; padding-top:8px;'>R{row['라운드']}</div>", unsafe_allow_html=True)
+            st.metric("🏁 전체 레이스", f"{전체}개")
         with col2:
-            st.markdown(f"<div style='font-weight:bold; font-size:16px; padding-top:8px;'>{row['그랑프리']}</div>", unsafe_allow_html=True)
+            st.metric("✅ 완료", f"{완료수}개")
         with col3:
-            st.markdown(f"<div style='color:#888; padding-top:8px;'>🏟️ {row['서킷']}</div>", unsafe_allow_html=True)
-        with col4:
-            color = "#E10600" if is_next else ("#4CAF50" if is_done else "#888")
-            st.markdown(f"<div style='color:{color}; padding-top:8px; text-align:right;'>{row['상태']}</div>", unsafe_allow_html=True)
+            st.metric("🔘 남은 레이스", f"{예정수}개")
 
-        if is_next:
-            st.info(f"📅 {row['날짜']} — — — — — — — 다음 레이스입니다!")
-        st.markdown("---")
+        st.divider()
+
+        # ─────────────────────────────────────────────────────
+        # 다음 레이스 강조 배너 (해당 연도에 다음 레이스가 있을 때만 표시)
+        # ─────────────────────────────────────────────────────
+        다음레이스_df = schedule_df[schedule_df["상태"] == "🔴 다음 레이스"]
+
+        if not 다음레이스_df.empty:
+            r = 다음레이스_df.iloc[0]  # 첫 번째 행 꺼내기
+            st.markdown(f"""
+            <div class='next-race-banner'>
+                <p style='color:#FFD0D0; font-size:12px; letter-spacing:3px; margin:0;'>NEXT RACE</p>
+                <h2 style='color:white; font-size:26px; margin:8px 0;'>🏎️ {r['그랑프리']}</h2>
+                <p style='color:#FFD0D0; font-size:15px; margin:0;'>
+                    📍 {r['도시']}, {r['나라']} &nbsp;|&nbsp; 🏟️ {r['서킷']} &nbsp;|&nbsp; 📅 {r['날짜']}
+                </p>
+            </div>
+            """, unsafe_allow_html=True)
+            st.write("")  # 여백
+
+        # ─────────────────────────────────────────────────────
+        # 레이스 목록 표 출력
+        # ─────────────────────────────────────────────────────
+        st.subheader(f"📋 {선택_연도}년 전체 일정")
+
+        # 행마다 색깔을 다르게 칠해주는 함수
+        def 색깔_적용(row):
+            if "완료" in row["상태"]:
+                return ["background-color: #1a3a2a; color: #4CAF50"] * len(row)  # 초록
+            elif "다음" in row["상태"]:
+                return ["background-color: #3a1a1a; color: #E10600"] * len(row)  # 빨강
+            else:
+                return ["color: #888888"] * len(row)  # 회색
+
+        # 표 출력 (색깔 적용)
+        st.dataframe(
+            schedule_df.style.apply(색깔_적용, axis=1),
+            use_container_width=True,   # 화면 너비에 꽉 맞게
+            hide_index=True,            # 왼쪽 숫자 인덱스 숨기기
+            height=560,                 # 표 높이
+        )
+
+        st.caption("📌 날짜 기준은 레이스 당일이에요. 데이터 출처: Ergast Motor Racing API")
 
 
 # 📊 통계 분석
