@@ -933,7 +933,7 @@ elif page == "📊 통계 분석":
         constructor_df = pd.merge(con_stats_df, con_info_df, on='팀').sort_values(by='포인트', ascending=False)
     with tab1:
         with st.spinner("Loading..."):
-            st.markdown("### 포인트 vs 승수 산점도")
+            st.markdown(f"### {stat_years}시즌 포인트 vs 승수 산점도")
             fig = px.scatter(
                 driver_df,
                 x="포인트",
@@ -977,6 +977,20 @@ elif page == "📊 통계 분석":
                     filter: brightness(110%);
                     --shadow-blur: 10px;
                 }}
+                .driver-card .notice{{
+                    text-align: center;
+                    font-size: 10px;
+                    color: #dddddd;
+                    display: block;
+                    margin: auto;
+                    height: 0px;
+                    opacity : 0;
+                    transition: all 0.2s ease 0s;
+                }}
+                .driver-card:hover .notice{{
+                    height: 4px;
+                    opacity: 1;
+                }}
             """
             but_html = f"""
                 <div class='driver-card' id='dcard-{dname}' style='border-left-color:{color}; --shadow-color:{color}; cursor : pointer;'>
@@ -995,6 +1009,7 @@ elif page == "📊 통계 분석":
                             <div style='color:#888; font-size:11px;'>PTS</div>
                         </div>
                     </div>
+                    <span class='notice'>연도별 승점 열람</span>
                 </div>
                 """
             but_js = f"""
@@ -1013,18 +1028,20 @@ elif page == "📊 통계 분석":
             res = but_comp(on_clicked_change=lambda x=dname: change_status(x))
             if st.session_state.dbut_active.get(f"dbut_{dname}", False):
                 with st.spinner(f"🏎️loading..."):
-                    spec_driver_df = spec_driver_all_df[spec_driver_all_df["드라이버"]==row["드라이버"]]
-                    st.line_chart(
-                        spec_driver_df,
-                        x='연도',
-                        y='포인트',
-                        color=color
-                    )
+                    with st.container():
+                        st.markdown(f"<span style='color:white; font-size:16px; text-align:right; margin-right: 16px;'> 📉 연도별 포인트 획득</span><span style='color:white; font-size:16px; text-align:right; margin-right: 16px;'>|</span><span style='color:white; font-size:16px; color:{color};'>{row['드라이버']}</span>", unsafe_allow_html=True)
+                        spec_driver_df = spec_driver_all_df[spec_driver_all_df["드라이버"]==row["드라이버"]]
+                        st.line_chart(
+                            spec_driver_df,
+                            x='연도',
+                            y='포인트',
+                            color=color
+                        )
 
 
     with tab2:
         with st.spinner("Loading..."):
-            st.markdown("### 팀 포인트 비교")
+            st.markdown(f"### {stat_years}시즌 팀 포인트 비교")
             fig = go.Figure(data=[
                 go.Bar(
                     name="포인트",
@@ -1072,6 +1089,20 @@ elif page == "📊 통계 분석":
                     filter: brightness(110%);
                     --shadow-blur: 10px;
                 }}
+                .driver-card .notice{{
+                    text-align: center;
+                    font-size: 10px;
+                    color: #dddddd;
+                    display: block;
+                    margin: auto;
+                    height: 0px;
+                    opacity : 0;
+                    transition: all 0.2s ease 0s;
+                }}
+                .driver-card:hover .notice{{
+                    height: 4px;
+                    opacity: 1;
+                }}
             """
             but_html = f"""
                 <div class='driver-card' id='tcard-{tname}'style='border-left-color:{color}; --shadow-color:{color};'>
@@ -1089,6 +1120,7 @@ elif page == "📊 통계 분석":
                             <div style='color:#888; font-size:11px;'>PTS</div>
                         </div>
                     </div>
+                    <span class='notice'>연도별 승점 열람</span>
                 </div>
                 """
             but_js = f"""
@@ -1107,13 +1139,15 @@ elif page == "📊 통계 분석":
             res = but_comp(on_clicked_change=lambda x=tname: tchange_status(x))
             if st.session_state.tbut_active.get(f"tbut_{tname}", False):
                 with st.spinner(f"🏎️loading..."):
-                    spec_constructor_df = spec_constructor_all_df[spec_constructor_all_df["팀"]==row["팀"]]
-                    st.line_chart(
-                        spec_constructor_df,
-                        x='연도',
-                        y='포인트',
-                        color=color
-                    )
+                    with st.container():
+                        st.markdown(f"<span style='color:white; font-size:16px; text-align:right; margin-right: 16px;'> 📉 연도별 포인트 획득</span><span style='color:white; font-size:16px; text-align:right; margin-right: 16px;'>|</span><span style='color:white; font-size:16px; color:{color};'>{row['팀']}</span>", unsafe_allow_html=True)
+                        spec_constructor_df = spec_constructor_all_df[spec_constructor_all_df["팀"]==row["팀"]]
+                        st.line_chart(
+                            spec_constructor_df,
+                            x='연도',
+                            y='포인트',
+                            color=color
+                        )
 
 
 
