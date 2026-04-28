@@ -30,6 +30,7 @@
         filter: brightness(140%);
     }
 </style> -->
+
 ## 👥 팀 소개
 <br> 
 <div style='border-left: 4px solid #E10600; border-right: 4px solid #0016de; border-radius: 12px; background: linear-gradient(90deg, #6b140b, #000000, 80%, #0b146b); text-align:center; padding:8px;'>
