@@ -12,7 +12,6 @@
 > 8. [수행 결과](#-수행-결과)
 > 9. [회고](#-회고)
 <br>
-<br>
 <!-- <style>
     .gray_text{
         text-shadow: 0px 0px 5px #263196;
