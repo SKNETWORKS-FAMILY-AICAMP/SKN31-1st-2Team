@@ -567,7 +567,7 @@ if page == "🏠 홈":
     col_a, col_b = st.columns([3, 2])
 
     with col_a:
-        st.markdown("### 🏆 드라이버 TOP 5")
+        st.markdown("### 🏆 2026 드라이버 TOP 5")
         top5 = driver_df.head(5)
         for _, row in top5.iterrows():
             color = TEAM_COLORS.get(row["팀"], "#888")
@@ -591,7 +591,7 @@ if page == "🏠 홈":
             """, unsafe_allow_html=True)
 
     with col_b:
-        st.markdown("### 📊 포인트 차트")
+        st.markdown("### 📊 2026 포인트 차트")
         fig = px.bar(
             top5,
             x="드라이버",
