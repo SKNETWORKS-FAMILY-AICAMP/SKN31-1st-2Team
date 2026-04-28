@@ -3,16 +3,17 @@
 >**목차**
 >
 > 1. [팀 소개](#-팀-소개)
-> 2. [프로젝트 개요](#프로젝트-개요)
+> 2. [프로젝트 개요](#-프로젝트-개요)
 > 3. [기술 스택](#️-기술-스택)
-> 4. [WBS](#wbs)
-> 5. [요구사항 명세서](#요구사항-명세서)
-> 6. [ERD](#erd)
-> 7. [주요 프로시저](#주요-프로시저)
-> 8. [수행 결과](#수행-결과)
+> 4. [WBS](#-wbs)
+> 5. [요구사항 명세서](#-요구사항-명세서)
+> 6. [ERD](#-erd)
+> 7. [주요 프로시저](#-주요-프로시저)
+> 8. [수행 결과](#-수행-결과)
+> 9. [회고](#-회고)
 <br>
 <br>
-<style>
+<!-- <style>
     .gray_text{
         text-shadow: 0px 0px 5px #263196;
     }
@@ -28,7 +29,7 @@
     .f1-header:hover{
         filter: brightness(140%);
     }
-</style>
+</style> -->
 ## 👥 팀 소개
 <br> 
 <div style='border-left: 4px solid #E10600; border-right: 4px solid #0016de; border-radius: 12px; background: linear-gradient(90deg, #6b140b, #000000, 80%, #0b146b); text-align:center; padding:8px;'>
@@ -38,11 +39,12 @@
 
 <div align='center'>
 
-| <h class="gray_text">이재일</h> | <h class="gray_text">김재원</h> | <h class="gray_text">김동민</h> | <h class="gray_text">유진영</h> |
+| <h class="gray_text">👑 이재일</h> | <h class="gray_text">김재원</h> | <h class="gray_text">김동민</h> | <h class="gray_text">유진영</h> |
 |:-:|:-:|:-:|:-:|
 |<a href="https://github.com/qufdlfkd88"><img src="https://avatars.githubusercontent.com/u/5518059?v=4" width=100px></a>|<a href="https://github.com/kimjae9360"><img src="https://avatars.githubusercontent.com/u/46892399?v=4" width=100px></a>|<a href="https://github.com/Uranium10"><img src="https://avatars.githubusercontent.com/u/76613833?v=4" width=100px></a>|<a href="https://github.com/ujneg18-source"><img src="https://avatars.githubusercontent.com/u/273940846?v=4" width=100px></a>|
 |[@qufdlfkd88](https://github.com/qufdlfkd88)|[@kimjae9360](https://github.com/kimjae9360)|[@Uranium10](https://github.com/Uranium10)|[@ujneg18-source](https://github.com/ujneg18-source)|
-|PM||||
+|사용메뉴얼|FAQ|README<br>|DB정의서<br>ERD<br>데이터 설명서|
+|레이싱 일정|컨스트럭터<br>순위|드라이버, 팀별<br>통계 & 분석|드라이버 순위|
 
 </div>
 <br>
@@ -50,6 +52,10 @@
 ##  🚀 프로젝트 개요
 <br>
 
+> <br>
+
+> **F1 대쉬보드**는 **Python, Streamlit 을 활용**하여 **F1 그랑프리**(FIA Formula One World Championship) 의 **선수들과 팀 관련 정보**를 통계 정보를, **시각화하여** 제공하는 **동적 웹 페이지**입니다.
+> <br>
 <br>
 
 ## 🛠️ 기술 스택
@@ -67,51 +73,70 @@
 
 [![alt text](WBS_screenshot.png)](WBS.pdf)
 <br>
+## 🧾 요구사항 명세서
 
-## 요구사항 명세서
+<br>
+<a href="사용메뉴얼.pdf"></a>
 
 ## 📔 ERD
 ![alt text](F1_ERD2.png)
 <br>
 <table border="1" width ="500" height="300">
     <tr bgcolor="#343434" color="white">
-        <td>테이블</td> <td>설명</td>
+        <td width="30%">테이블</td> <td>설명</td>
     </tr>
     <tr>
         <td>driver_standings</td> 
-        <td>설명</td>
+        <td>시즌별 드라이버 성적(포인트, 순위, 소속 팀)</td>
     </tr>
     <tr>
         <td>drivers_master</td> 
-        <td>설명</td>
-    </tr>
-    <tr>
-        <td>constructors_standing</td> 
-        <td>설명</td>
+        <td>드라이버 기본 정보(이름, 생년월일, 국적)</td>
     </tr>
     <tr>
         <td>constructors</td> 
-        <td>설명</td>
+        <td>컨스트럭터의 기본 정보 저장</td>
+    </tr>
+    <tr>
+        <td>constructors_standing</td> 
+        <td>각 컨스트럭터별 성적(포인트, 순위) 저장</td>
     </tr>
     <tr>
         <td>circuits</td> 
-        <td>설명</td>
+        <td>서킷 위치 정보 저장</td>
     </tr>
     <tr>
-        <td>races</td> 
-        <td>설명</td>
+        <td>race</td> 
+        <td>레이스 일정 및 개최 정보 저장</td>
     </tr>
 </table>
 
 </br>
 
 
-## 주요 프로시저
+## ✨ 주요 프로시저
 
-## 수행 결과
-<div class='f1-header' onclick='location.href="./Execute.bat"'>
+<br>
+
+- 메인 페이지 <&nbsp> | 
+
+<br>
+
+## 👑 수행 결과
+
+[실행](Execute.bat)
+
+<!-- <div class='f1-header' onclick='location.href="./Execute.bat"'>
     <span style='font-size:48px; margin-top:-30px'>🏎️</span>
     <div>
         <h1 style='margin:0; color:white; font-size:32px;'>F1 Dashboard</h1>
     </div>
-</div>
+</div> -->
+
+## 💬 회고
+
+|||
+|-|-|
+|이재일|짧은 시간 이였지만 기획, 분석, 설계, 개발, 산출물 작성 등 프로젝트 진행 과정이 실무와 매우 흡사해서 놀랐고 형상관리 프로그램으로 팀원간 소스도 받아 보고 다른 기수 프로젝트도 볼 수 있어서 매우 유익한 시간 이였습니다.|
+|김동민||
+|유진영|이번 프로젝트를 통해 파이썬 코딩, Streamlit 구현, 크롤링까지 전체 과정을 경험하며 수업 내용을 실제로 적용하고 복습할 수 있었습니다. 특히 CSV 파일과 크롤링 데이터를 합치며 데이터를 정제하는 과정이 정말 어렵다는 걸 알게 됐습니다. 데이터 간의 이름이나 형식을 일관성 있게 맞추는 전처리 디테일이 분석의 기초가 된다는 걸 배운 값진 경험이었습니다. 또한 함수를 만들 때 독스트링을 활용해서 코드 가독성을 챙기는 게, 개인적으로 멋있어 보였고 중요하다고 느꼈습니다.|

@@ -909,8 +909,10 @@ elif page == "📊 통계 분석":
     stat_col1, stat_col2 = st.columns([3, 1])
     stat_years_list = list(range(nowyears, 1949, -1))
     stat_years_list.insert(0, "전체")
-    tab1, tab2 = stat_col1.tabs(["드라이버 통계", "팀 통계"])
-    stat_years = stat_col2.selectbox("", stat_years_list, index=1, label_visibility="collapsed", on_change=state_reset)
+    with stat_col1:
+        tab1, tab2 = st.tabs(["드라이버 통계", "팀 통계"])
+    with stat_col2:
+        stat_years = st.selectbox("", stat_years_list, index=1, label_visibility="collapsed", on_change=state_reset)
     driver_df = None
     constructor_df = None
     # 연도별 보기와 전체 기간 보기. 
