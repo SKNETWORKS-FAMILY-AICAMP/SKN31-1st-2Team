@@ -619,7 +619,7 @@ elif page == "🏆 드라이버 순위":
     def dr_change_team():
         st.session_state.search_input = ""
 
-    st.markdown("## 🏆 드라이버 챔피언십 조회")
+    st.markdown("## 🏆 F1 드라이버 조회")
     df, df_master = load_db_data()
 
     if df is not None:
@@ -669,7 +669,7 @@ elif page == "🏆 드라이버 순위":
                 nat_counts.columns = ['국적', '인원수']
                 st.plotly_chart(px.bar(nat_counts.head(10), x='국적', y='인원수', template="plotly_dark", color_discrete_sequence=['#FF4444'], text='인원수'), use_container_width=True)
             with c2:
-                st.markdown("##### 🔝 현재 리스트 포인트 Top 10")
+                st.markdown("##### 🔝 현재 리스트 포인트 ")
                 top_10 = res_df.sort_values('포인트', ascending=False).head(10)
                 fig = px.bar(top_10, x='포인트', y='드라이버', orientation='h', 
                              template="plotly_dark", 
