@@ -993,6 +993,9 @@ elif page == "📊 통계 분석":
                     height: 4px;
                     opacity: 1;
                 }}
+                .driver-card:active {{
+                    filter: brightness(180%);
+                }}
             """
             but_html = f"""
                 <div class='driver-card' id='dcard-{dname}' style='border-left-color:{color}; --shadow-color:{color}; cursor : pointer;'>
@@ -1090,6 +1093,9 @@ elif page == "📊 통계 분석":
                     border-left-width: 12px;
                     filter: brightness(110%);
                     --shadow-blur: 10px;
+                }}
+                .driver-card:active {{
+                    filter: brightness(180%); 
                 }}
                 .driver-card .notice{{
                     text-align: center;
