@@ -691,7 +691,7 @@ elif page == "🏁 컨스트럭터 순위":
     with col_title:
         st.markdown("## 🏁 컨스트럭터 챔피언십")
     with col_select:
-        year_list = list(range(2024, 1949, -1))
+        year_list = list(range(2026, 1949, -1))
         selected_year = st.selectbox("시즌 선택", year_list, label_visibility="collapsed")
     
     # 2. ✅ 팀원의 MySQL DB에서 데이터 불러오기!
@@ -755,20 +755,20 @@ elif page == "📅 레이스 일정":
     def get_schedule(year):
         """Jolpica API에서 특정 연도의 레이스 일정을 가져옵니다."""
         try:
-            url = f"https://api.jolpi.ca/ergast/f1/{year}.json"
-            response = requests.get(url, timeout=10)
+            url = f"https://api.jolpi.ca/ergast/f1/{year}.json" # url에 년도를 넣어서 API 호출
+            response = requests.get(url, timeout=10)            # 10초 동안 응답없으면 실패
 
-            if response.status_code != 200:
-                return pd.DataFrame()
+            if response.status_code != 200:                     # 응답이 200(정상) 이 아니면 
+                return pd.DataFrame()                           # DataFrame 반환
 
-            data = response.json()
-            races = data.get("MRData", {}).get("RaceTable", {}).get("Races", [])
+            data = response.json()                                                  # API는 JSON 형태로 데이터 줌
+            races = data.get("MRData", {}).get("RaceTable", {}).get("Races", [])    # Races 안에 경기 리스트 있음 get이 키 없어도 안전 하게 접근
 
             if not races:
-                return pd.DataFrame()
+                return pd.DataFrame()      # 레이스 정보 없으면 빈 표 반환
 
             rows = []
-            for race in races:
+            for race in races:                                                              # 레이스 정보를 하나 씩 꺼내서 딕셔너리 형태 리스트로 반환
                 rows.append({
                     "라운드": int(race.get("round", 0)),
                     "그랑프리": race.get("raceName", ""),
@@ -780,7 +780,7 @@ elif page == "📅 레이스 일정":
 
             return pd.DataFrame(rows)
 
-        except Exception as e:
+        except Exception as e:                      # api 오류가 난다면 api 오류 메시지 출력
             print(f"레이스 일정 API 오류: {e}")
             return pd.DataFrame()
 
@@ -799,12 +799,12 @@ elif page == "📅 레이스 일정":
     # ─────────────────────────────────────────────────────────
     # 선택한 연도의 데이터 불러오기
     # ─────────────────────────────────────────────────────────
-    with st.spinner(f"⏳ {선택_연도}년 일정을 불러오는 중..."):
+    with st.spinner(f"⏳ {선택_연도}년 일정을 불러오는 중..."): # {선택_연도} 일정을 불러오는 동안 로딩 표시를 띄우고, 그 작업 결과를 schedule_df에 저장한다
         schedule_df = get_schedule(선택_연도)
 
     # 데이터가 없으면 안내 메시지 표시
-    if schedule_df.empty:
-        st.warning(f"⚠️ {선택_연도}년 데이터를 불러올 수 없어요. 잠시 후 다시 시도해주세요.")
+    if schedule_df.empty:       
+        st.warning(f"⚠️ {선택_연도}년 데이터를 불러올 수 없어요. 잠시 후 다시 시도해주세요.")   # 데이터가 비어 있다면 {선택_연도} 데이터를 불러 올 수 있다는 메시지를 표시 한다.
 
     else:
         # ─────────────────────────────────────────────────────
@@ -818,52 +818,56 @@ elif page == "📅 레이스 일정":
         상태_목록 = []
         다음레이스_찾음 = False  # 다음 레이스를 아직 못 찾은 상태
 
-        for _, row in schedule_df.iterrows():
+        for _, row in schedule_df.iterrows(): # schedule_df의 각 행을 하나씩 꺼내서 index는 버리고, 행 데이터만 row로 사용한다 ('_' 는 인덱스를 무시한 다는 의미)
             레이스날짜 = date.fromisoformat(row["날짜"])  # 문자열 → 날짜로 변환
 
-            if 레이스날짜 < 오늘:
-                상태_목록.append("✅ 완료")           # 오늘보다 이전 = 완료
-            elif not 다음레이스_찾음:
+            if 레이스날짜 < 오늘:                     # 레이스 날짜를 오늘과 비교한다 
+                상태_목록.append("✅ 완료")          # 오늘보다 이전 = 완료
+            elif not 다음레이스_찾음:                 # 아직 "다음 레이스"를 안 찾았다면 이걸 다음 레이스로 지정
                 상태_목록.append("🔴 다음 레이스")    # 처음 만나는 미래 날짜 = 다음 레이스
                 다음레이스_찾음 = True
             else:
-                상태_목록.append("🔘 예정")            # 그 이후 = 예정
+                상태_목록.append("🔘 예정")            # 그 이후 = 예정 (다음 레이스 하나가 선택 되면 나머지는 모두 예정)
 
-        schedule_df["상태"] = 상태_목록  # 표에 상태 컬럼 추가
+        schedule_df["상태"] = 상태_목록  # 표에 상태 컬럼 추가 (만들어둔 상태 리스트를 DataFrame의 "상태" 컬럼으로 추가)
 
         # ─────────────────────────────────────────────────────
         # 통계 요약 숫자 (상단에 크게 표시)
         # ─────────────────────────────────────────────────────
-        전체 = len(schedule_df)
-        완료수 = schedule_df["상태"].str.contains("완료").sum()
-        예정수 = schedule_df["상태"].str.contains("예정").sum()
+        전체 = len(schedule_df)                                     # DataFrame 행 개수 = 전체 레이스 수
+        완료수 = schedule_df["상태"].str.contains("완료").sum()      # 상태 컬럼에서 완료 라는 글자를 찾아서 그 개수를 센다
+        예정수 = schedule_df["상태"].str.contains("예정").sum()      # 상태 컬럼에서 예정이라는 글자를 찾아서 그 개수를 센다
 
-        col1, col2, col3 = st.columns(3)
+        col1, col2, col3 = st.columns(3)                            # 한 행을 3개의 열로 나눈다
         with col1:
-            st.metric("🏁 전체 레이스", f"{전체}개")
+            st.metric("🏁 전체 레이스", f"{전체}개")                # st.metric(가독성 높은 형태로 보여준다) , 전체 개수를 가져와 보여준다
         with col2:
-            st.metric("✅ 완료", f"{완료수}개")
+            st.metric("✅ 완료", f"{완료수}개")                     # st.metric(가독성 높은 형태로 보여준다) , 완료수 개수를 가져와 보여준다
         with col3:
-            st.metric("🔘 남은 레이스", f"{예정수}개")
+            st.metric("🔘 남은 레이스", f"{예정수}개")              # st.metric(가독성 높은 형태로 보여준다) , 예정수 개수를 가져와 보여준다
 
-        st.divider()
+        st.divider()                                                # 화면에 구분선을 보여준다 (배경이 검은색이라서 보이지 않음)
 
         # ─────────────────────────────────────────────────────
         # 다음 레이스 강조 배너 (해당 연도에 다음 레이스가 있을 때만 표시)
         # ─────────────────────────────────────────────────────
-        다음레이스_df = schedule_df[schedule_df["상태"] == "🔴 다음 레이스"]
+        다음레이스_df = schedule_df[schedule_df["상태"] == "🔴 다음 레이스"] # 상태 컬럼에서 "🔴 다음 레이스"인 행만 골라서 다음레이스_df 생성
 
-        if not 다음레이스_df.empty:
-            r = 다음레이스_df.iloc[0]  # 첫 번째 행 꺼내기
+        if not 다음레이스_df.empty: # 비어있지 않으면 (즉, 다음 레이스가 있으면) 실행, 없으면 아무 것도 안함
+            r = 다음레이스_df.iloc[0]  # 다음 레이스는 하나 밖에 없으니 첫 번째 행 꺼내기
             st.markdown(f"""
             <div class='next-race-banner'>
-                <p style='color:#FFD0D0; font-size:12px; letter-spacing:3px; margin:0;'>NEXT RACE</p>
+                <p style='color:#FFD0D0; font-size:12px; letter-spacing:3px; margin:0;'>NEXT RACE</p> 
                 <h2 style='color:white; font-size:26px; margin:8px 0;'>🏎️ {r['그랑프리']}</h2>
                 <p style='color:#FFD0D0; font-size:15px; margin:0;'>
                     📍 {r['도시']}, {r['나라']} &nbsp;|&nbsp; 🏟️ {r['서킷']} &nbsp;|&nbsp; 📅 {r['날짜']}
                 </p>
             </div>
-            """, unsafe_allow_html=True)
+            """, unsafe_allow_html=True)    # HTML 태그 사용 허용 없으면 그냥 문자로 출력 됨
+             # 배너 박스 (CSS 스타일 적용용)
+             # 첫 째 줄에 'NEXT RACE'
+             # 둘 째 줄에 그랑프리 이름
+             # 셋 째 줄에 도시, 나라, 서킷, 날짜 
             st.write("")  # 여백
 
         # ─────────────────────────────────────────────────────
@@ -874,9 +878,9 @@ elif page == "📅 레이스 일정":
         # 행마다 색깔을 다르게 칠해주는 함수
         def 색깔_적용(row):
             if "완료" in row["상태"]:
-                return ["background-color: #1a3a2a; color: #4CAF50"] * len(row)  # 초록
+                return ["background-color: #1a3a2a; color: #4CAF50"] * len(row)  # 상태가 완료 라면 배경 색이 초록 색
             elif "다음" in row["상태"]:
-                return ["background-color: #3a1a1a; color: #E10600"] * len(row)  # 빨강
+                return ["background-color: #3a1a1a; color: #E10600"] * len(row)  # 상태가 다음이라면 배경 색이 빨강 색
             else:
                 return ["color: #888888"] * len(row)  # 회색
 
