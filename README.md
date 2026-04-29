@@ -140,6 +140,8 @@
 ## 👑 수행 결과
 
 [![images](card.svg)](https://skn311stmod-85kqoagc6qhx4jrh65g6sz.streamlit.app)
+
+↑ 클릭하면 실행됩니다. 
 <!-- 
 [실행](https://skn311stmod-85kqoagc6qhx4jrh65g6sz.streamlit.app) -->
 
