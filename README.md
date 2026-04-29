@@ -1,4 +1,4 @@
-<h1 align='center' style='font-weight: bold;'> ==▒▒▒&nbsp;&nbsp;&nbsp;🏎️ F1 Dashboard &nbsp;&nbsp;&nbsp;&nbsp; ▒▒▒== </h1>
+<h1 align='center' style='font-weight: bold;'> ==▒▒▒&nbsp;&nbsp;&nbsp;🏎️ F1 Dashboard 🏁 &nbsp;&nbsp;&nbsp; ▒▒▒== </h1>
 
 > 
 > ### **목차**
