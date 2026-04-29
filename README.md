@@ -1,6 +1,7 @@
 <h1 align='center' style='font-weight: bold;'> 🏎️ F1 Dashboard </h1>
 
->**목차**
+> 
+> ### **목차**
 >
 > 1. [팀 소개](#-팀-소개)
 > 2. [프로젝트 개요](#-프로젝트-개요)
@@ -11,6 +12,7 @@
 > 7. [주요 프로시저](#-주요-프로시저)
 > 8. [수행 결과](#-수행-결과)
 > 9. [회고](#-회고)
+
 <br>
 <!-- <style>
     .gray_text{
@@ -30,7 +32,7 @@
     }
 </style> -->
 
-## 👥 팀 소개
+## [👥 팀 소개](#목차)
 <br> 
 
 ![logo](f4.svg)
@@ -49,7 +51,7 @@
 </div>
 <br>
 
-##  🚀 프로젝트 개요
+##  [🚀 프로젝트 개요](#목차)
 <br>
 
 <h3 font-color:"#630d13"> 프로젝트명 : F1 Dashboard </h3>
@@ -66,7 +68,7 @@
 
 <br>
 
-## 🛠️ 기술 스택
+## [🛠️ 기술 스택](#목차)
 <br>
 <p>
 <img src='https://img.shields.io/badge/Python-3776AB?style=for-the-badge&logo=Python&logoColor=white' />
@@ -79,7 +81,7 @@
 </p>
 <br>
  
-## 📊 WBS
+## [📊 WBS](#목차)
 
 [![alt text](./산출물/WBS_screenshot.png)](WBS.pdf)
 <br>
@@ -88,7 +90,7 @@
 <br>
 <a href="./산출물/사용메뉴얼.pdf">사용 메뉴얼.pdf</a>
 
-## 📔 ERD
+## [📔 ERD](#목차)
 ![alt text](./산출물/F1_ERD2.png)
 <br>
 <table border="1" width ="500" height="300">
@@ -124,7 +126,7 @@
 </br>
 
 
-## ✨ 주요 프로시저
+## [✨ 주요 프로시저](#목차)
 
 <br>
 
@@ -137,7 +139,7 @@
 
 <br>
 
-## 👑 수행 결과
+## [👑 수행 결과](#목차)
 
 [![images](card.svg)](https://skn311stmod-85kqoagc6qhx4jrh65g6sz.streamlit.app)
 
@@ -152,7 +154,7 @@
     </div>
 </div> -->
 
-## 💬 회고
+## [💬 회고](#목차)
 
 |||
 |-|-|
