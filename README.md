@@ -32,11 +32,11 @@
 
 ## 👥 팀 소개
 <br> 
-<div style='border-left: 4px solid #E10600; border-right: 4px solid #0016de; border-radius: 12px; background: linear-gradient(90deg, #6b140b, #000000, 80%, #0b146b); text-align:center; padding:8px;'>
-<h3 style='color:white; font-weight: bold;margin:auto;display:block;'> Team F4 </h3>
-</div>
-<br>
 
+![logo](f4.svg)
+<!-- <div style='border-left: 4px solid #E10600; border-right: 4px solid #0016de; border-radius: 12px; background: linear-gradient(90deg, #6b140b, #000000, 80%, #0b146b); text-align:center; padding:8px;'>
+<h3 style='color:white; font-weight: bold;margin:auto;display:block;'> Team F4 </h3>
+</div> -->
 <div align='center'>
 
 | <h class="gray_text">👑 이재일</h> | <h class="gray_text">김재원</h> | <h class="gray_text">김동민</h> | <h class="gray_text">유진영</h> |
