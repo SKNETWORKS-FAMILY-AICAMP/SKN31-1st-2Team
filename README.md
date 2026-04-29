@@ -130,7 +130,7 @@
 
 ## 👑 수행 결과
 
-[실행](https://skn311stmod-85kqoagc6qhx4jrh65g6sz.streamlit.app))
+[실행](https://skn311stmod-85kqoagc6qhx4jrh65g6sz.streamlit.app)
 
 <!-- <div class='f1-header' onclick='location.href="./Execute.bat"'>
     <span style='font-size:48px; margin-top:-30px'>🏎️</span>
