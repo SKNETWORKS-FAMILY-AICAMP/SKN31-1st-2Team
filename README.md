@@ -85,10 +85,11 @@
 
 [![alt text](./산출물/WBS_screenshot.png)](WBS.pdf)
 <br>
-## 🧾 사용 메뉴얼
+
+## [🧾 사용 메뉴얼](#목차)
 
 <br>
-<a href="./산출물/사용메뉴얼.pdf"> ℹ️사용 메뉴얼.pdf</a>
+<a href="./산출물/사용메뉴얼.pdf"> ℹ️ 사용 메뉴얼.pdf</a>
 
 <br>
 
