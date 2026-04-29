@@ -54,7 +54,7 @@
 ##  [🚀 프로젝트 개요](#목차)
 <br>
 
-<h3 font-color:"#630d13"> 프로젝트명 : F1 Dashboard </h3>
+<h3 font-color:"#630d13" align='center'> ==▒▒▒&nbsp;&nbsp;&nbsp; F1 Dashboard &nbsp;&nbsp;&nbsp;▒▒▒== </h3>
 <br>
 
 >
